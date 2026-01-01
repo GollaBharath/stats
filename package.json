@@ -1,0 +1,41 @@
+{
+	"name": "personal-stats-api",
+	"version": "1.0.0",
+	"description": "Personal telemetry and stats aggregation API that collects data from Spotify, Discord, LeetCode, and WakaTime. Designed for deployment on Render with Upstash Redis.",
+	"main": "src/index.js",
+	"scripts": {
+		"dev": "nodemon src/index.js",
+		"start": "node src/index.js",
+		"test": "node src/index.js"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/GollaBharath/stats.git"
+	},
+	"keywords": [
+		"telemetry",
+		"stats",
+		"api",
+		"discord",
+		"spotify",
+		"leetcode",
+		"wakatime",
+		"personal-dashboard"
+	],
+	"author": "",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/GollaBharath/stats/issues"
+	},
+	"homepage": "https://github.com/GollaBharath/stats#readme",
+	"dependencies": {
+		"axios": "^1.13.2",
+		"dotenv": "^17.2.3",
+		"express": "^5.2.1",
+		"ioredis": "^5.8.2",
+		"node-cron": "^4.2.1"
+	},
+	"devDependencies": {
+		"nodemon": "^3.1.11"
+	}
+}

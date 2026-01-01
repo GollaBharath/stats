@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: personal-stats-api
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REDIS_URL
+        sync: false
+      - key: DISCORD_USER_ID
+        sync: false
+      - key: LEETCODE_USERNAME
+        sync: false
+      - key: WAKATIME_API_KEY
+        sync: false
+      - key: INTERVAL_DISCORD
+        value: 2
+      - key: INTERVAL_LEETCODE
+        value: 60
+      - key: INTERVAL_WAKATIME
+        value: 30
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: CACHE_TTL
+        value: 300
