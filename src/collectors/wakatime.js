@@ -20,8 +20,10 @@ async function fetchWakaTimeData() {
 
 		console.log("🔄 Fetching WakaTime data...");
 
+		// WakaTime uses Basic Auth: base64 encode "api_key:" (note the colon)
+		const authToken = Buffer.from(`${apiKey}:`).toString("base64");
 		const headers = {
-			Authorization: `Bearer ${apiKey}`,
+			Authorization: `Basic ${authToken}`,
 			"User-Agent": "Personal-Stats-API/1.0",
 		};
 

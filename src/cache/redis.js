@@ -1,9 +1,9 @@
-const Redis = require("ioredis");
+const { Redis } = require("@upstash/redis");
 
 let redisClient = null;
 
 /**
- * Initialize Redis connection
+ * Initialize Redis connection (Upstash REST API)
  */
 function initRedis() {
 	if (redisClient) {
@@ -11,39 +11,24 @@ function initRedis() {
 	}
 
 	try {
-		const redisUrl = process.env.REDIS_URL;
+		const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+		const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-		if (!redisUrl) {
-			console.warn("⚠️  REDIS_URL not configured. Running without cache.");
+		// Fallback to standard Redis URL if Upstash not configured
+		if (!upstashUrl || !upstashToken) {
+			console.warn(
+				"⚠️  Upstash Redis not configured (UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN). Running without cache."
+			);
 			return null;
 		}
 
-		redisClient = new Redis(redisUrl, {
-			maxRetriesPerRequest: 3,
-			enableReadyCheck: true,
-			lazyConnect: false,
-			retryStrategy(times) {
-				const delay = Math.min(times * 50, 2000);
-				return delay;
-			},
-			reconnectOnError(err) {
-				console.error("Redis reconnect error:", err.message);
-				return true;
-			},
+		// Create Upstash Redis client (REST-based, no persistent connection needed)
+		redisClient = new Redis({
+			url: upstashUrl,
+			token: upstashToken,
 		});
 
-		redisClient.on("connect", () => {
-			console.log("✅ Redis connected successfully");
-		});
-
-		redisClient.on("error", (err) => {
-			console.error("❌ Redis error:", err.message);
-		});
-
-		redisClient.on("close", () => {
-			console.log("🔌 Redis connection closed");
-		});
-
+		console.log("✅ Upstash Redis initialized");
 		return redisClient;
 	} catch (error) {
 		console.error("Failed to initialize Redis:", error.message);
@@ -68,7 +53,22 @@ async function getCache(key) {
 			return null;
 		}
 
-		return JSON.parse(data);
+		// If data is already an object (Upstash sometimes returns parsed JSON), return it
+		if (typeof data === "object") {
+			return data;
+		}
+
+		// If it's a string, try to parse it
+		if (typeof data === "string") {
+			try {
+				return JSON.parse(data);
+			} catch {
+				// If parsing fails, return the raw string (e.g., for tokens)
+				return data;
+			}
+		}
+
+		return data;
 	} catch (error) {
 		console.error(`Cache get error for key "${key}":`, error.message);
 		return null;
@@ -88,8 +88,10 @@ async function setCache(key, value, ttl = 300) {
 			return false;
 		}
 
-		const serialized = JSON.stringify(value);
-		await redisClient.setex(key, ttl, serialized);
+		// For objects, stringify them; for strings (like tokens), store as-is
+		const dataToStore =
+			typeof value === "string" ? value : JSON.stringify(value);
+		await redisClient.set(key, dataToStore, { ex: ttl });
 
 		return true;
 	} catch (error) {
