@@ -1,7 +1,7 @@
 {
 	"name": "personal-stats-api",
 	"version": "1.0.0",
-	"description": "Personal telemetry and stats aggregation API that collects data from Spotify, Discord, LeetCode, and WakaTime. Designed for deployment on Render with Upstash Redis.",
+	"description": "Personal telemetry and stats aggregation API that collects data from Discord, Spotify, LeetCode, and WakaTime. Features Upstash Redis caching, scheduled data collection, and CORS-enabled REST API.",
 	"main": "src/index.js",
 	"scripts": {
 		"dev": "nodemon src/index.js",
@@ -20,7 +20,10 @@
 		"spotify",
 		"leetcode",
 		"wakatime",
-		"personal-dashboard"
+		"personal-dashboard",
+		"upstash",
+		"redis",
+		"render"
 	],
 	"author": "",
 	"license": "MIT",
@@ -33,7 +36,6 @@
 		"axios": "^1.13.2",
 		"dotenv": "^17.2.3",
 		"express": "^5.2.1",
-		"ioredis": "^5.8.2",
 		"node-cron": "^4.2.1"
 	},
 	"devDependencies": {

@@ -20,12 +20,12 @@ A powerful personal telemetry and stats aggregation backend that collects data f
 - Rich presence data
 - Updates every 2 minutes (configurable)
 
-### 2. Spotify (via Discord Integration)
+### 2. Spotify (Official API)
 
-- Current playing track
+- Currently playing track
 - Artist and album information
-- Album artwork
-- Playback timestamps
+- Album artwork and track details
+- Playback progress and duration
 
 ### 3. LeetCode
 
@@ -87,33 +87,44 @@ A powerful personal telemetry and stats aggregation backend that collects data f
 
 #### 1. Upstash Redis
 
-- **URL**: [https://console.upstash.com/](https://console.upstash.com/)
+- **URL**: https://console.upstash.com/
 - **Steps**:
   1. Create a free account
   2. Create a new Redis database
-  3. Copy the Redis URL
-  4. Add to `.env` as `REDIS_URL`
+  3. Copy the REST URL and REST TOKEN
+  4. Add to `.env` as `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
 
 #### 2. Discord (Lanyard)
 
-- **URL**: [https://discord.gg/lanyard](https://discord.gg/lanyard)
+- **URL**: https://discord.gg/lanyard
 - **Steps**:
   1. Join the Lanyard Discord server
   2. Enable Developer Mode in Discord (Settings → Advanced → Developer Mode)
   3. Right-click your profile and select "Copy User ID"
   4. Add to `.env` as `DISCORD_USER_ID`
-- **Note**: Spotify integration requires Discord and Spotify accounts to be connected
 
-#### 3. LeetCode
+#### 3. Spotify (Official API)
+
+- **URL**: https://developer.spotify.com/dashboard
+- **Steps**:
+  1. Go to Spotify Developer Dashboard
+  2. Create a new app
+  3. Add redirect URI: `http://localhost:8888/callback`
+  4. Copy Client ID and Client Secret
+  5. Run: `SPOTIFY_CLIENT_ID=xxx SPOTIFY_CLIENT_SECRET=xxx node setup-spotify.js`
+  6. Authorize in browser and copy the refresh token
+  7. Add all three to `.env`: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`
+
+#### 4. LeetCode
 
 - **No API key required!**
 - **Steps**:
   1. Find your LeetCode username (visible in your profile URL)
   2. Add to `.env` as `LEETCODE_USERNAME`
 
-#### 4. WakaTime
+#### 5. WakaTime
 
-- **URL**: [https://wakatime.com/settings/api-key](https://wakatime.com/settings/api-key)
+- **URL**: https://wakatime.com/settings/api-key
 - **Steps**:
   1. Sign up/login at WakaTime
   2. Go to Settings → API Key
@@ -122,19 +133,24 @@ A powerful personal telemetry and stats aggregation backend that collects data f
 
 ### Environment Variables
 
-| Variable            | Required | Default     | Description                            |
-| ------------------- | -------- | ----------- | -------------------------------------- |
-| `PORT`              | No       | 3000        | Server port (Render provides this)     |
-| `NODE_ENV`          | No       | development | Environment mode                       |
-| `REDIS_URL`         | Yes      | -           | Upstash Redis connection URL           |
-| `DISCORD_USER_ID`   | Yes      | -           | Your Discord user ID                   |
-| `LEETCODE_USERNAME` | Yes      | -           | Your LeetCode username                 |
-| `WAKATIME_API_KEY`  | Yes      | -           | Your WakaTime API key                  |
-| `INTERVAL_DISCORD`  | No       | 2           | Discord collection interval (minutes)  |
-| `INTERVAL_LEETCODE` | No       | 60          | LeetCode collection interval (minutes) |
-| `INTERVAL_WAKATIME` | No       | 30          | WakaTime collection interval (minutes) |
-| `ALLOWED_ORIGINS`   | No       | \*          | CORS allowed origins (comma-separated) |
-| `CACHE_TTL`         | No       | 300         | Cache time-to-live (seconds)           |
+| Variable                   | Required | Default     | Description                            |
+| -------------------------- | -------- | ----------- | -------------------------------------- |
+| `PORT`                     | No       | 3000        | Server port                            |
+| `NODE_ENV`                 | No       | development | Environment mode                       |
+| `UPSTASH_REDIS_REST_URL`   | Yes      | -           | Upstash Redis REST URL                 |
+| `UPSTASH_REDIS_REST_TOKEN` | Yes      | -           | Upstash Redis REST Token               |
+| `DISCORD_USER_ID`          | Yes      | -           | Your Discord user ID                   |
+| `SPOTIFY_CLIENT_ID`        | Yes      | -           | Spotify app client ID                  |
+| `SPOTIFY_CLIENT_SECRET`    | Yes      | -           | Spotify app client secret              |
+| `SPOTIFY_REFRESH_TOKEN`    | Yes      | -           | Spotify refresh token                  |
+| `LEETCODE_USERNAME`        | Yes      | -           | Your LeetCode username                 |
+| `WAKATIME_API_KEY`         | Yes      | -           | Your WakaTime API key                  |
+| `INTERVAL_DISCORD`         | No       | 2           | Discord collection interval (minutes)  |
+| `INTERVAL_SPOTIFY`         | No       | 2           | Spotify collection interval (minutes)  |
+| `INTERVAL_LEETCODE`        | No       | 60          | LeetCode collection interval (minutes) |
+| `INTERVAL_WAKATIME`        | No       | 30          | WakaTime collection interval (minutes) |
+| `ALLOWED_ORIGINS`          | No       | \*          | CORS allowed origins (comma-separated) |
+| `CACHE_TTL`                | No       | 300         | Cache time-to-live (seconds)           |
 
 ## API Endpoints 🔌
 
@@ -208,10 +224,8 @@ A powerful personal telemetry and stats aggregation backend that collects data f
 - **Free tier limitations**:
   - Service spins down after 15 minutes of inactivity
   - First request after spin-down takes ~30 seconds
-  - Consider using a uptime monitor for 24/7 availability
 - **PORT variable**: Render automatically provides `PORT` - don't override it
-
-- **Persistent data**: Use Upstash Redis (not local Redis) for data persistence
+- **Persistent data**: Use Upstash Redis for data persistence
 
 ## Usage Examples 💡
 
@@ -326,34 +340,29 @@ module.exports = { fetchMyServiceData };
 **Redis connection fails**
 
 - Verify your `REDIS_URL` is correct
+- Verify your Upstash REST URL and token are correct
 - Check Upstash dashboard for database status
-- Ensure your IP isn't blocked
 
 **Discord data returns null**
 
 - Make sure you've joined the Lanyard Discord server
 - Verify your `DISCORD_USER_ID` is correct
-- Check if Lanyard is tracking your presence
+
+**Spotify returns null**
+
+- Verify all three Spotify credentials are set
+- Regenerate refresh token using `setup-spotify.js`
+- Make sure you're actually playing music
 
 **LeetCode data not updating**
 
 - Verify your username is correct (case-sensitive)
-- LeetCode API might be rate-limited
 - Check if your profile is public
 
 **WakaTime returns 401 error**
 
-- Regenerate your API key
+- Regenerate your API key from WakaTime settings
 - Ensure the key starts with `waka_`
-- Check API key hasn't expired
-
-**Render deployment fails**
-
-- Check build logs for errors
-- Verify all environment variables are set
-- Ensure Node version compatibility
-
-## Performance & Best Practices 📈
 
 - **Caching**: All data is cached in Redis to minimize API calls
 - **Rate Limiting**: Configure intervals appropriately to avoid rate limits
@@ -372,22 +381,8 @@ This is a personal project template, but you're welcome to:
 ## License 📄
 
 MIT License - feel free to use this project for your personal dashboard!
+Feel free to fork and customize for your own use. Submit issues for bugs or suggestions.
 
-## Acknowledgments 🙏
+## License 📄
 
-- [Lanyard](https://github.com/Phineas/lanyard) for Discord presence API
-- [Upstash](https://upstash.com/) for serverless Redis
-- [Render](https://render.com/) for easy deployment
-- All the amazing APIs that make this possible
-
-## Support 💬
-
-If you have questions or need help:
-
-- Open an issue on GitHub
-- Check the troubleshooting section
-- Review the `.env.example` for configuration guidance
-
----
-
-Built with ❤️ for personal dashboards and stat tracking
+MIT Licens

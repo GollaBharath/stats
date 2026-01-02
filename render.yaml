@@ -9,15 +9,25 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: REDIS_URL
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
       - key: DISCORD_USER_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
+      - key: SPOTIFY_REFRESH_TOKEN
         sync: false
       - key: LEETCODE_USERNAME
         sync: false
       - key: WAKATIME_API_KEY
         sync: false
       - key: INTERVAL_DISCORD
+        value: 2
+      - key: INTERVAL_SPOTIFY
         value: 2
       - key: INTERVAL_LEETCODE
         value: 60
