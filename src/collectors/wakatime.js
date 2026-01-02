@@ -6,7 +6,7 @@ const CACHE_KEY = "stats:wakatime";
 const CACHE_TTL = parseInt(process.env.CACHE_TTL, 10) || 300;
 
 /**
- * Utility: aggregate breakdown arrays (languages, projects, etc.)
+ * Aggregation helpers
  */
 function aggregate(items = []) {
 	const map = new Map();
@@ -20,7 +20,7 @@ function aggregate(items = []) {
 		map.set(item.name, existing);
 	}
 
-	const total = [...map.values()].reduce((sum, i) => sum + i.total_seconds, 0);
+	const total = [...map.values()].reduce((s, i) => s + i.total_seconds, 0);
 
 	return [...map.values()]
 		.map((i) => ({
@@ -48,11 +48,67 @@ function secondsToText(seconds) {
 }
 
 /**
- * Fetch WakaTime coding statistics (FREE-TIER SAFE)
+ * Normalize stats window
+ */
+function normalizeStats(stats) {
+	const days = stats.days || [];
+
+	let totalSeconds = 0;
+	let bestDay = null;
+
+	const languages = [];
+	const projects = [];
+	const editors = [];
+	const categories = [];
+	const operatingSystems = [];
+
+	for (const day of days) {
+		const dayTotal = day.grand_total.total_seconds;
+		totalSeconds += dayTotal;
+
+		if (!bestDay || dayTotal > bestDay.total_seconds) {
+			bestDay = {
+				date: day.range.date,
+				total_seconds: dayTotal,
+				text: day.grand_total.text,
+			};
+		}
+
+		languages.push(...(day.languages || []));
+		projects.push(...(day.projects || []));
+		editors.push(...(day.editors || []));
+		categories.push(...(day.categories || []));
+		operatingSystems.push(...(day.operating_systems || []));
+	}
+
+	const daysWithData = days.length || 1;
+	const dailyAverage = Math.floor(totalSeconds / daysWithData);
+
+	return {
+		total_seconds: totalSeconds,
+		human_readable_total: secondsToText(totalSeconds),
+		daily_average: dailyAverage,
+		human_readable_daily_average: secondsToText(dailyAverage),
+		best_day: bestDay,
+		languages: aggregate(languages).slice(0, 10),
+		projects: aggregate(projects).slice(0, 10),
+		editors: aggregate(editors),
+		categories: aggregate(categories),
+		operating_systems: aggregate(operatingSystems),
+		days: days.map((d) => ({
+			date: d.range.date,
+			total_seconds: d.grand_total.total_seconds,
+			text: d.grand_total.text,
+			digital: d.grand_total.digital,
+		})),
+	};
+}
+
+/**
+ * Fetch WakaTime data (FREE-TIER ONLY)
  */
 async function fetchWakaTimeData() {
 	const apiKey = process.env.WAKATIME_API_KEY;
-
 	if (!apiKey) {
 		console.warn("⚠️  WAKATIME_API_KEY not configured");
 		return null;
@@ -67,58 +123,22 @@ async function fetchWakaTimeData() {
 	try {
 		console.log("🔄 Fetching WakaTime data...");
 
-		const end = new Date();
-		const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-		const [userRes, summariesRes, allTimeRes] = await Promise.all([
+		const [userRes, stats7Res, stats30Res] = await Promise.all([
 			axios.get(`${WAKATIME_API}/users/current`, { headers }),
-			axios.get(`${WAKATIME_API}/users/current/stats/last_7_days`, {
-				headers,
-				params: {
-					start: start.toISOString().split("T")[0],
-					end: end.toISOString().split("T")[0],
-				},
-			}),
-			axios.get(`${WAKATIME_API}/users/current/all_time_since_today`, {
+			axios.get(`${WAKATIME_API}/users/current/stats/last_7_days`, { headers }),
+			axios.get(`${WAKATIME_API}/users/current/stats/last_30_days`, {
 				headers,
 			}),
 		]);
 
 		const user = userRes.data.data;
-		const summaries = summariesRes.data.data;
-		const allTime = allTimeRes.data.data;
+		const stats7 = normalizeStats(stats7Res.data.data);
+		const stats30 = normalizeStats(stats30Res.data.data);
 
-		// Aggregate from summaries
-		let totalSeconds = 0;
-		let bestDay = null;
-
-		const languages = [];
-		const projects = [];
-		const editors = [];
-		const categories = [];
-		const operatingSystems = [];
-
-		for (const day of summaries) {
-			const dayTotal = day.grand_total.total_seconds;
-			totalSeconds += dayTotal;
-
-			if (!bestDay || dayTotal > bestDay.total_seconds) {
-				bestDay = {
-					date: day.range.date,
-					total_seconds: dayTotal,
-					text: day.grand_total.text,
-				};
-			}
-
-			languages.push(...(day.languages || []));
-			projects.push(...(day.projects || []));
-			editors.push(...(day.editors || []));
-			categories.push(...(day.categories || []));
-			operatingSystems.push(...(day.operating_systems || []));
-		}
-
-		const daysWithData = summaries.length || 1;
-		const dailyAverage = Math.floor(totalSeconds / daysWithData);
+		/**
+		 * Explicit estimate — NOT real all-time
+		 */
+		const estimatedAllTimeSeconds = stats30.daily_average * 365;
 
 		const normalized = {
 			user: {
@@ -133,31 +153,14 @@ async function fetchWakaTimeData() {
 				last_heartbeat_at: user.last_heartbeat_at,
 			},
 
-			stats_last_7_days: {
-				total_seconds: totalSeconds,
-				human_readable_total: secondsToText(totalSeconds),
-				daily_average: dailyAverage,
-				human_readable_daily_average: secondsToText(dailyAverage),
-				languages: aggregate(languages).slice(0, 10),
-				projects: aggregate(projects).slice(0, 10),
-				editors: aggregate(editors),
-				categories: aggregate(categories),
-				operating_systems: aggregate(operatingSystems),
-				best_day: bestDay,
-			},
+			stats_last_7_days: stats7,
+			stats_last_30_days: stats30,
 
-			all_time: {
-				total_seconds: allTime.total_seconds,
-				text: allTime.text,
-				is_up_to_date: allTime.is_up_to_date,
+			derived_all_time_estimate: {
+				total_seconds: estimatedAllTimeSeconds,
+				text: secondsToText(estimatedAllTimeSeconds),
+				source: "estimated_from_last_30_days",
 			},
-
-			daily_summaries: summaries.map((day) => ({
-				date: day.range.date,
-				total_seconds: day.grand_total.total_seconds,
-				text: day.grand_total.text,
-				digital: day.grand_total.digital,
-			})),
 
 			last_updated: new Date().toISOString(),
 		};
@@ -167,11 +170,11 @@ async function fetchWakaTimeData() {
 
 		return normalized;
 	} catch (error) {
-		if (error.response?.status === 402) {
-			console.warn("⚠️  WakaTime premium endpoint blocked — using cache");
-		} else {
-			console.error("❌ WakaTime fetch failed:", error.message);
-		}
+		console.error(
+			"❌ WakaTime fetch failed:",
+			error.response?.status,
+			error.response?.data || error.message
+		);
 
 		const cached = await getCache(CACHE_KEY);
 		if (cached) return cached;
@@ -181,7 +184,7 @@ async function fetchWakaTimeData() {
 }
 
 /**
- * Get WakaTime data (cache-first)
+ * Cache-first access
  */
 async function getWakaTimeData() {
 	const cached = await getCache(CACHE_KEY);
