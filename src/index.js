@@ -101,7 +101,6 @@ app.use((err, req, res, next) => {
 
 // Server initialization
 const PORT = process.env.PORT || 3000;
-const DISABLE_SCHEDULER = process.env.DISABLE_SCHEDULER === "true";
 
 async function startServer() {
 	try {
@@ -114,14 +113,8 @@ async function startServer() {
 		// Wait a moment for Redis to connect
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 
-		// Initialize data collection scheduler (unless disabled for worker setup)
-		if (!DISABLE_SCHEDULER) {
-			initScheduler();
-		} else {
-			console.log(
-				"⏭️  Scheduler disabled - running in API-only mode (worker handles data collection)"
-			);
-		}
+		// Initialize data collection scheduler
+		initScheduler();
 
 		// Start Express server
 		app.listen(PORT, () => {
@@ -130,11 +123,6 @@ async function startServer() {
 			console.log(`📍 Local: http://localhost:${PORT}`);
 			console.log(`📊 Stats API: http://localhost:${PORT}/stats`);
 			console.log(`💚 Health Check: http://localhost:${PORT}/health`);
-			if (DISABLE_SCHEDULER) {
-				console.log(
-					`🔧 Mode: API-only (data collection handled by background worker)`
-				);
-			}
 			console.log("=".repeat(50) + "\n");
 		});
 	} catch (error) {

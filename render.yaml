@@ -1,5 +1,4 @@
 services:
-  # Web Service - Handles API requests
   - type: web
     name: personal-stats-api
     env: node
@@ -7,27 +6,6 @@ services:
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DISABLE_SCHEDULER
-        value: true
-      - key: UPSTASH_REDIS_REST_URL
-        sync: false
-      - key: UPSTASH_REDIS_REST_TOKEN
-        sync: false
-      - key: ALLOWED_ORIGINS
-        value: "*"
-      - key: CACHE_TTL
-        value: 300
-
-  # Background Worker - Handles data collection
-  - type: worker
-    name: personal-stats-worker
-    env: node
-    plan: free
-    buildCommand: npm install
-    startCommand: node src/worker.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -55,5 +33,7 @@ services:
         value: 60
       - key: INTERVAL_WAKATIME
         value: 30
+      - key: ALLOWED_ORIGINS
+        value: "*"
       - key: CACHE_TTL
         value: 300

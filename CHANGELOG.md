@@ -2,26 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.0] - 2026-01-03
-
-### Architecture Update
-
-- ✅ **Split into microservices architecture**:
-  - Web Service: Handles API requests (Express)
-  - Background Worker: Runs data collection (Scheduler)
-  - Shared cache via Upstash Redis
-- ✅ Added `src/worker.js` for background data collection
-- ✅ Added `DISABLE_SCHEDULER` environment variable
-- ✅ Updated `render.yaml` with separate web and worker services
-- ✅ Added npm scripts: `npm run worker` and `npm run dev:worker`
-
-### Benefits
-
-- Better resource isolation
-- Independent scaling of API and data collection
-- Prevents API requests from being blocked by data collection
-- Free tier friendly (worker doesn't need to handle HTTP)
-
 ## [1.0.0] - 2026-01-02
 
 ### Features

@@ -6,8 +6,6 @@
 	"scripts": {
 		"dev": "nodemon src/index.js",
 		"start": "node src/index.js",
-		"worker": "node src/worker.js",
-		"dev:worker": "nodemon src/worker.js",
 		"test": "node src/index.js"
 	},
 	"repository": {
