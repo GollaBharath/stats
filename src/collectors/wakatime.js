@@ -72,7 +72,7 @@ async function fetchWakaTimeData() {
 
 		const [userRes, summariesRes, allTimeRes] = await Promise.all([
 			axios.get(`${WAKATIME_API}/users/current`, { headers }),
-			axios.get(`${WAKATIME_API}/users/current/summaries`, {
+			axios.get(`${WAKATIME_API}/users/current/stats/last_7_days`, {
 				headers,
 				params: {
 					start: start.toISOString().split("T")[0],
