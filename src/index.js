@@ -82,6 +82,7 @@ app.use((req, res) => {
 			"/stats/spotify",
 			"/stats/leetcode",
 			"/stats/wakatime",
+			"/stats/github",
 			"/stats/health",
 		],
 	});

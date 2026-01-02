@@ -60,6 +60,7 @@ Returns API information and available endpoints.
 		"spotify": "/stats/spotify",
 		"leetcode": "/stats/leetcode",
 		"wakatime": "/stats/wakatime",
+		"github": "/stats/github",
 		"health": "/stats/health"
 	},
 	"status": "operational"
@@ -113,6 +114,9 @@ Returns all data from all sources in a single response.
 		},
 		"wakatime": {
 			/* WakaTime data */
+		},
+		"github": {
+			/* GitHub data */
 		}
 	}
 }
@@ -433,6 +437,134 @@ Returns comprehensive coding statistics from WakaTime.
 
 ---
 
+### 8. GitHub Profile and Activity
+
+**GET /stats/github**
+
+Returns comprehensive GitHub profile, repository, and activity statistics.
+
+**Response:**
+
+```json
+{
+	"meta": {
+		"generated_at": "2026-01-03T12:00:00.000Z"
+	},
+	"data": {
+		"user": {
+			"username": "yourname",
+			"name": "Your Full Name",
+			"avatar_url": "https://avatars.githubusercontent.com/u/12345678",
+			"bio": "Software Engineer | Open Source Enthusiast",
+			"location": "San Francisco, CA",
+			"website": "https://yourwebsite.com",
+			"company": "@YourCompany",
+			"twitter_username": "yourhandle",
+			"public_repos": 42,
+			"public_gists": 15,
+			"followers": 250,
+			"following": 180,
+			"created_at": "2015-01-15T00:00:00Z",
+			"profile_url": "https://github.com/yourname"
+		},
+		"repository_metrics": {
+			"total_repos": 42,
+			"owned_repos": 35,
+			"forked_repos": 7,
+			"total_stars": 1250,
+			"owned_stars": 1200,
+			"total_forks": 340,
+			"archived_count": 3,
+			"note": "Metrics include both public and private repos visible to the token"
+		},
+		"top_repositories": [
+			{
+				"name": "awesome-project",
+				"full_name": "yourname/awesome-project",
+				"description": "A really awesome project that does amazing things",
+				"url": "https://github.com/yourname/awesome-project",
+				"stars": 450,
+				"forks": 120,
+				"language": "JavaScript",
+				"created_at": "2020-03-15T00:00:00Z",
+				"updated_at": "2026-01-02T10:30:00Z",
+				"pushed_at": "2026-01-02T10:30:00Z",
+				"is_fork": false,
+				"is_archived": false,
+				"topics": ["nodejs", "api", "open-source"]
+			}
+		],
+		"language_distribution": [
+			{
+				"name": "JavaScript",
+				"count": 18,
+				"percent": "42.9"
+			},
+			{
+				"name": "Python",
+				"count": 12,
+				"percent": "28.6"
+			},
+			{
+				"name": "TypeScript",
+				"count": 8,
+				"percent": "19.0"
+			}
+		],
+		"activity_last_30_days": {
+			"period_days": 30,
+			"commits_count": 156,
+			"commits_note": "Estimated from push events (may undercount commits pushed before token creation)",
+			"push_events": 45,
+			"pull_requests_opened": 12,
+			"pull_requests_merged": 10,
+			"issues_opened": 8,
+			"total_events": 234,
+			"daily_timeline": [
+				{
+					"date": "2026-01-01",
+					"events": 15
+				},
+				{
+					"date": "2026-01-02",
+					"events": 22
+				}
+			],
+			"most_active_repos": [
+				{
+					"repo": "yourname/awesome-project",
+					"events": 45
+				},
+				{
+					"repo": "yourname/another-project",
+					"events": 32
+				}
+			]
+		},
+		"contribution_signals": {
+			"current_streak": 12,
+			"longest_streak_in_period": 25,
+			"active_days_in_period": 24,
+			"note": "Calculated from recent events (up to 90 days, max 300 events)",
+			"last_activity": "2026-01-03T08:45:00Z",
+			"last_activity_human": "3 hours ago"
+		},
+		"rate_limit_note": "GitHub API has rate limits. Authenticated: 5000 req/hr. Data may be cached.",
+		"last_updated": "2026-01-03T12:00:00.000Z"
+	}
+}
+```
+
+**Notes:**
+
+- Activity metrics are based on the last 30 days of events
+- Commit counts are estimated from push events (may undercount)
+- Streaks are calculated from available event data (up to 90 days, max 300 events)
+- Requires `GITHUB_TOKEN` environment variable
+- Token needs `read:user` and optionally `repo` scope for private repos
+
+---
+
 ## Error Responses
 
 ### 404 Not Found
@@ -448,7 +580,8 @@ Returns comprehensive coding statistics from WakaTime.
 		"/stats/discord",
 		"/stats/spotify",
 		"/stats/leetcode",
-		"/stats/wakatime"
+		"/stats/wakatime",
+		"/stats/github"
 	]
 }
 ```
@@ -505,6 +638,7 @@ Access-Control-Max-Age: 86400
 - `stats:discord` - Discord presence
 - `stats:leetcode` - LeetCode stats
 - `stats:wakatime` - WakaTime stats
+- `stats:github` - GitHub profile and activity
 
 ---
 
@@ -517,6 +651,7 @@ Data is collected automatically at configurable intervals:
 | Discord/Spotify | 2 minutes        | `INTERVAL_DISCORD`  |
 | LeetCode        | 60 minutes       | `INTERVAL_LEETCODE` |
 | WakaTime        | 30 minutes       | `INTERVAL_WAKATIME` |
+| GitHub          | 30 minutes       | `INTERVAL_GITHUB`   |
 
 ---
 

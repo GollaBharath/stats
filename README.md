@@ -12,7 +12,7 @@ Express Server
     +---> Scheduler (cron jobs)
     |          |
     |          v
-    |     Collectors (Discord, Spotify, LeetCode, WakaTime)
+    |     Collectors (Discord, Spotify, LeetCode, WakaTime, GitHub)
     |          |
     +----------+
                |
@@ -30,7 +30,7 @@ Express Server
 
 ## Features ✨
 
-- **Multi-Platform Data Collection**: Aggregates data from Discord, Spotify, LeetCode, and WakaTime
+- **Multi-Platform Data Collection**: Aggregates data from Discord, Spotify, LeetCode, WakaTime, and GitHub
 - **Real-Time Updates**: Configurable cron jobs with different intervals for each data source
 - **Redis Caching**: Fast response times using Upstash Redis
 - **CORS-Enabled**: Safe to consume from static sites (Netlify, GitHub Pages, etc.)
@@ -67,6 +67,14 @@ Express Server
 - Editor and OS usage
 - Projects and categories
 - Daily summaries
+
+### 5. GitHub
+
+- User profile information
+- Repository metrics (stars, forks, language distribution)
+- Activity stats (commits, PRs, issues in last 30 days)
+- Contribution signals (streak estimation, most active repos)
+- Top repositories by stars
 
 ## Quick Start 🚀
 
@@ -157,6 +165,18 @@ Express Server
   3. Copy your Secret API Key
   4. Add to `.env` as `WAKATIME_API_KEY`
 
+#### 6. GitHub
+
+- **URL**: https://github.com/settings/tokens
+- **Steps**:
+  1. Go to GitHub Settings → Developer Settings → Personal access tokens → Tokens (classic)
+  2. Click "Generate new token (classic)"
+  3. Give it a descriptive name (e.g., "Personal Stats API")
+  4. Select scopes: `read:user`, `repo` (for private repo stats), `read:org` (optional)
+  5. Generate and copy the token
+  6. Add to `.env` as `GITHUB_TOKEN`
+- **Note**: The token only needs read access. For public-only stats, `read:user` and `public_repo` suffice.
+
 ### Environment Variables
 
 | Variable                   | Required | Default     | Description                            |
@@ -171,10 +191,12 @@ Express Server
 | `SPOTIFY_REFRESH_TOKEN`    | Yes      | -           | Spotify refresh token                  |
 | `LEETCODE_USERNAME`        | Yes      | -           | Your LeetCode username                 |
 | `WAKATIME_API_KEY`         | Yes      | -           | Your WakaTime API key                  |
+| `GITHUB_TOKEN`             | Yes      | -           | GitHub personal access token           |
 | `INTERVAL_DISCORD`         | No       | 2           | Discord collection interval (minutes)  |
 | `INTERVAL_SPOTIFY`         | No       | 2           | Spotify collection interval (minutes)  |
 | `INTERVAL_LEETCODE`        | No       | 60          | LeetCode collection interval (minutes) |
 | `INTERVAL_WAKATIME`        | No       | 30          | WakaTime collection interval (minutes) |
+| `INTERVAL_GITHUB`          | No       | 30          | GitHub collection interval (minutes)   |
 | `ALLOWED_ORIGINS`          | No       | \*          | CORS allowed origins (comma-separated) |
 | `CACHE_TTL`                | No       | 300         | Cache time-to-live (seconds)           |
 
@@ -196,6 +218,7 @@ Express Server
 | `GET /stats/spotify`  | Current Spotify playback                | Now playing information        |
 | `GET /stats/leetcode` | LeetCode statistics                     | Problem-solving stats          |
 | `GET /stats/wakatime` | WakaTime coding stats                   | Coding activity data           |
+| `GET /stats/github`   | GitHub profile and activity             | Repository and activity stats  |
 
 ### Example Response
 
@@ -209,7 +232,8 @@ Express Server
     "discord": { ... },
     "spotify": { ... },
     "leetcode": { ... },
-    "wakatime": { ... }
+    "wakatime": { ... },
+    "github": { ... }
   }
 }
 ```

@@ -3,6 +3,7 @@ const { fetchDiscordData } = require("./collectors/discord");
 const { fetchSpotifyData } = require("./collectors/spotify");
 const { fetchLeetCodeData } = require("./collectors/leetcode");
 const { fetchWakaTimeData } = require("./collectors/wakatime");
+const { fetchGitHubData } = require("./collectors/github");
 
 /**
  * Initialize all scheduled data collection jobs
@@ -16,12 +17,14 @@ function initScheduler() {
 	const spotifyInterval = parseInt(process.env.INTERVAL_SPOTIFY) || 2;
 	const leetcodeInterval = parseInt(process.env.INTERVAL_LEETCODE) || 60;
 	const wakatimeInterval = parseInt(process.env.INTERVAL_WAKATIME) || 30;
+	const githubInterval = parseInt(process.env.INTERVAL_GITHUB) || 30;
 
 	console.log("📅 Collection intervals:");
 	console.log(`   - Discord: every ${discordInterval} minute(s)`);
 	console.log(`   - Spotify: every ${spotifyInterval} minute(s)`);
 	console.log(`   - LeetCode: every ${leetcodeInterval} minute(s)`);
 	console.log(`   - WakaTime: every ${wakatimeInterval} minute(s)`);
+	console.log(`   - GitHub: every ${githubInterval} minute(s)`);
 
 	// Discord collector
 	// Runs frequently since presence updates in real-time
@@ -58,15 +61,30 @@ function initScheduler() {
 		);
 		await fetchWakaTimeData();
 	});
+
+	// GitHub collector
+	// Runs moderately since activity updates periodically
+	const githubCron = `*/${githubInterval} * * * *`;
+	cron.schedule(githubCron, async () => {
+		console.log(`\n[${new Date().toISOString()}] Running GitHub collector...`);
+		await fetchGitHubData();
+	});
+
 	fetchDiscordData(),
 		fetchSpotifyData(),
 		fetchLeetCodeData(),
 		fetchWakaTimeData(),
+		fetchGitHubData(),
 		console.log("✅ Scheduler initialized successfully\n");
 
 	// Run all collectors immediately on startup
 	console.log("🚀 Running initial data collection...\n");
-	Promise.all([fetchDiscordData(), fetchLeetCodeData(), fetchWakaTimeData()])
+	Promise.all([
+		fetchDiscordData(),
+		fetchLeetCodeData(),
+		fetchWakaTimeData(),
+		fetchGitHubData(),
+	])
 		.then(() => {
 			console.log("\n✅ Initial data collection completed");
 		})

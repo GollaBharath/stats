@@ -25,6 +25,8 @@ services:
         sync: false
       - key: WAKATIME_API_KEY
         sync: false
+      - key: GITHUB_TOKEN
+        sync: false
       - key: INTERVAL_DISCORD
         value: 2
       - key: INTERVAL_SPOTIFY
@@ -32,6 +34,8 @@ services:
       - key: INTERVAL_LEETCODE
         value: 60
       - key: INTERVAL_WAKATIME
+        value: 30
+      - key: INTERVAL_GITHUB
         value: 30
       - key: ALLOWED_ORIGINS
         value: "*"

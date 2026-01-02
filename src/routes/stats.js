@@ -3,6 +3,7 @@ const { getDiscordData } = require("../collectors/discord");
 const { getSpotifyData } = require("../collectors/spotify");
 const { getLeetCodeData } = require("../collectors/leetcode");
 const { getWakaTimeData } = require("../collectors/wakatime");
+const { getGitHubData } = require("../collectors/github");
 
 const router = express.Router();
 
@@ -11,11 +12,12 @@ const router = express.Router();
  */
 router.get("/", async (req, res) => {
 	try {
-		const [discord, spotify, leetcode, wakatime] = await Promise.all([
+		const [discord, spotify, leetcode, wakatime, github] = await Promise.all([
 			getDiscordData(),
 			getSpotifyData(),
 			getLeetCodeData(),
 			getWakaTimeData(),
+			getGitHubData(),
 		]);
 
 		res.json({
@@ -28,6 +30,7 @@ router.get("/", async (req, res) => {
 				spotify,
 				leetcode,
 				wakatime,
+				github,
 			},
 		});
 	} catch (error) {
@@ -152,6 +155,35 @@ router.get("/wakatime", async (req, res) => {
 		console.error("Error fetching WakaTime data:", error);
 		res.status(500).json({
 			error: "Failed to fetch WakaTime data",
+			message: error.message,
+		});
+	}
+});
+
+/**
+ * GET /github - GitHub profile and activity statistics
+ */
+router.get("/github", async (req, res) => {
+	try {
+		const data = await getGitHubData();
+
+		if (!data) {
+			return res.status(404).json({
+				error: "GitHub data not available",
+				message: "Check if GITHUB_TOKEN is configured correctly",
+			});
+		}
+
+		res.json({
+			meta: {
+				generated_at: new Date().toISOString(),
+			},
+			data,
+		});
+	} catch (error) {
+		console.error("Error fetching GitHub data:", error);
+		res.status(500).json({
+			error: "Failed to fetch GitHub data",
 			message: error.message,
 		});
 	}
