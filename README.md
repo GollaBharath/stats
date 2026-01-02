@@ -2,9 +2,37 @@
 
 A powerful personal telemetry and stats aggregation backend that collects data from multiple platforms and exposes it through a fast, read-only JSON API. Perfect for building personal dashboards and static sites.
 
+## Architecture 🏗️
+
+```
+GitHub: GollaBharath/stats
+          |
+          +---------------+------------------+
+          |                                  |
+   Render Web Service                  Render Background Worker
+   (handles API)                         (runs scheduler)
+          |                                  |
+        Express                         src/worker.js
+          |                                  |
+   Exposes endpoints                  Periodic collectors
+          |                                  |
+          +----------------------------------+
+                          |
+                    Redis (Upstash)
+                   (shared cache)
+```
+
+**Benefits**:
+
+- API requests never blocked by data collection
+- Independent scaling of web and worker services
+- Better resource utilization
+- Free tier friendly
+
 ## Features ✨
 
 - **Multi-Platform Data Collection**: Aggregates data from Discord, Spotify, LeetCode, and WakaTime
+- **Microservices Architecture**: Separate web and worker services for optimal performance
 - **Real-Time Updates**: Configurable cron jobs with different intervals for each data source
 - **Redis Caching**: Fast response times using Upstash Redis
 - **CORS-Enabled**: Safe to consume from static sites (Netlify, GitHub Pages, etc.)
@@ -190,34 +218,60 @@ A powerful personal telemetry and stats aggregation backend that collects data f
 
 ## Deployment on Render 🚢
 
-### Step-by-Step Guide
+### Architecture on Render
 
-1. **Create a Render account**
+The app deploys as **two separate services**:
 
-   - Go to [render.com](https://render.com/)
-   - Sign up with GitHub
+1. **Web Service** (`personal-stats-api`):
 
-2. **Create a new Web Service**
+   - Handles HTTP API requests
+   - Reads data from Redis cache
+   - Uses `DISABLE_SCHEDULER=true`
+   - Command: `npm start`
 
-   - Click "New +" → "Web Service"
-   - Connect your GitHub repository
-   - Configure the service:
-     - **Name**: Your app name
-     - **Environment**: Node
-     - **Build Command**: `npm install`
-     - **Start Command**: `npm start`
-     - **Plan**: Free
+2. **Background Worker** (`personal-stats-worker`):
+   - Runs data collection scheduler
+   - Writes data to Redis cache
+   - No HTTP server
+   - Command: `node src/worker.js`
 
-3. **Add environment variables**
+Both services share the same Upstash Redis instance.
 
-   - Go to "Environment" tab
-   - Add all variables from `.env.example`
-   - Make sure to add your actual credentials
+### Deployment Methods
 
-4. **Deploy**
-   - Click "Create Web Service"
-   - Render will automatically deploy your app
-   - Your API will be available at `https://your-app.onrender.com`
+#### Option 1: Using render.yaml (Recommended)
+
+The repository includes a `render.yaml` file that automatically creates both services:
+
+1. Go to [render.com](https://render.com/) and sign up
+2. Click "New +" → "Blueprint"
+3. Connect your GitHub repository
+4. Render will detect `render.yaml` and create both services
+5. Add your environment variables to both services
+6. Deploy!
+
+#### Option 2: Manual Setup
+
+**Create Web Service**:
+
+1. Click "New +" → "Web Service"
+2. Connect repository
+3. Configure:
+   - Name: `personal-stats-api`
+   - Build: `npm install`
+   - Start: `npm start`
+   - Add env var: `DISABLE_SCHEDULER=true`
+   - Add Redis credentials
+
+**Create Worker Service**:
+
+1. Click "New +" → "Background Worker"
+2. Connect same repository
+3. Configure:
+   - Name: `personal-stats-worker`
+   - Build: `npm install`
+   - Start: `node src/worker.js`
+   - Add all API credentials and intervals
 
 ### Important Notes for Render
 
@@ -282,20 +336,36 @@ function StatsDisplay() {
 ```
 stats/
 ├── src/
-│   ├── index.js              # Main Express application
+│   ├── index.js              # Express API server (web service)
+│   ├── worker.js             # Background data collector (worker service)
 │   ├── scheduler.js          # Cron job scheduler
 │   ├── cache/
-│   │   └── redis.js          # Redis cache manager
+│   │   └── redis.js          # Upstash Redis manager
 │   ├── collectors/
 │   │   ├── discord.js        # Discord/Lanyard collector
-│   │   ├── spotify.js        # Spotify data extractor
-│   │   ├── leetcode.js       # LeetCode API collector
+│   │   ├── spotify.js        # Spotify Official API collector
+│   │   ├── leetcode.js       # LeetCode GraphQL collector
 │   │   └── wakatime.js       # WakaTime API collector
 │   └── routes/
 │       └── stats.js          # API route handlers
+├── render.yaml               # Render deployment config (2 services)
+├── setup-spotify.js          # Spotify OAuth helper script
 ├── .env.example              # Environment template
 ├── package.json
 └── README.md
+```
+
+### Running Locally
+
+```bash
+# Run everything (API + Scheduler)
+npm run dev
+
+# Run only API (reads from cache)
+DISABLE_SCHEDULER=true npm run dev
+
+# Run only worker (data collection)
+npm run dev:worker
 ```
 
 ## Adding New Data Sources 🔧
