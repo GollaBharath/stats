@@ -50,6 +50,7 @@ app.get("/", (req, res) => {
 			leetcode: "/stats/leetcode",
 			wakatime: "/stats/wakatime",
 			health: "/stats/health",
+			time: "/time",
 		},
 		documentation: "https://github.com/GollaBharath/stats",
 		status: "operational",
@@ -58,6 +59,21 @@ app.get("/", (req, res) => {
 
 // Mount stats routes
 app.use("/stats", statsRoute);
+
+// Time endpoint - returns current time in IST
+app.get("/time", (req, res) => {
+	const now = new Date();
+	const istTime = new Intl.DateTimeFormat("en-US", {
+		timeZone: "Asia/Kolkata",
+		hour: "2-digit",
+		minute: "2-digit",
+		hour12: true,
+	}).format(now);
+
+	res.json({
+		time: istTime,
+	});
+});
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -77,6 +93,7 @@ app.use((req, res) => {
 		available_routes: [
 			"/",
 			"/health",
+			"/time",
 			"/stats",
 			"/stats/discord",
 			"/stats/spotify",
