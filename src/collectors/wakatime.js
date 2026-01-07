@@ -53,6 +53,62 @@ function secondsToText(seconds) {
 function normalizeStats(stats) {
 	const days = stats.days || [];
 
+	// Some WakaTime responses only include aggregated totals (no per-day breakdown)
+	const hasPerDayBreakdown = days.length > 0;
+
+	if (!hasPerDayBreakdown) {
+		const totalSeconds = stats.grand_total?.total_seconds || 0;
+		const dailyAverage = stats.daily_average || 0;
+
+		const normalizeList = (items = [], limit) => {
+			const normalized = items.map((i) => ({
+				name: i.name,
+				total_seconds: i.total_seconds || 0,
+				percent: i.percent || 0,
+				digital: i.digital || secondsToDigital(i.total_seconds || 0),
+				text: i.text || secondsToText(i.total_seconds || 0),
+			}));
+
+			return typeof limit === "number"
+				? normalized.slice(0, limit)
+				: normalized;
+		};
+
+		const bestDay = stats.best_day
+			? {
+					date: stats.best_day.date || stats.best_day.range?.date || null,
+					total_seconds:
+						stats.best_day.grand_total?.total_seconds ||
+						stats.best_day.total_seconds ||
+						0,
+					text:
+						stats.best_day.grand_total?.text ||
+						stats.best_day.text ||
+						secondsToText(
+							stats.best_day.grand_total?.total_seconds ||
+								stats.best_day.total_seconds ||
+								0
+						),
+			  }
+			: null;
+
+		return {
+			total_seconds: totalSeconds,
+			human_readable_total:
+				stats.human_readable_total || secondsToText(totalSeconds),
+			daily_average: dailyAverage,
+			human_readable_daily_average:
+				stats.human_readable_daily_average || secondsToText(dailyAverage),
+			best_day: bestDay,
+			languages: normalizeList(stats.languages, 10),
+			projects: normalizeList(stats.projects, 10),
+			editors: normalizeList(stats.editors),
+			categories: normalizeList(stats.categories),
+			operating_systems: normalizeList(stats.operating_systems),
+			days: [],
+		};
+	}
+
 	let totalSeconds = 0;
 	let bestDay = null;
 
