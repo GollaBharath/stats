@@ -99,16 +99,18 @@ async function fetchAllPages(url, headers, maxPages = 10) {
  * Aggregate language statistics across all repositories
  */
 function aggregateLanguages(repos) {
+	// Consider only owned, non-archived repositories to avoid skew from forks/archives
+	const eligible = repos.filter((r) => !r.fork && !r.archived && r.language);
+
 	const languageMap = new Map();
 
-	for (const repo of repos) {
-		if (repo.language) {
-			const count = languageMap.get(repo.language) || 0;
-			languageMap.set(repo.language, count + 1);
-		}
+	for (const repo of eligible) {
+		const lang = repo.language;
+		const count = languageMap.get(lang) || 0;
+		languageMap.set(lang, count + 1);
 	}
 
-	const total = repos.filter((r) => r.language).length || 1;
+	const total = eligible.length || 1;
 
 	return [...languageMap.entries()]
 		.map(([name, count]) => ({
@@ -437,6 +439,75 @@ function calculateStreak(events) {
 }
 
 /**
+ * Calculate contribution streak from GraphQL contribution calendar days
+ * Uses days with contributions > 0 across the provided period
+ */
+function calculateStreakFromContributionDays(daysArr) {
+	if (!Array.isArray(daysArr) || daysArr.length === 0) {
+		return {
+			current_streak: 0,
+			longest_streak_in_period: 0,
+			active_days_in_period: 0,
+			note: "Calculated from GraphQL contributions calendar",
+		};
+	}
+
+	// Build a set of dates with at least one contribution
+	const activeDates = new Set();
+	for (const d of daysArr) {
+		if (d && d.date && (d.contributions || d.contributionCount || 0) > 0) {
+			activeDates.add(d.date);
+		}
+	}
+
+	const sortedDates = [...activeDates].sort();
+	const todayStr = new Date().toISOString().split("T")[0];
+	const yesterdayStr = new Date(Date.now() - 24 * 60 * 60 * 1000)
+		.toISOString()
+		.split("T")[0];
+
+	// Current streak: consecutive active days ending today or yesterday
+	let currentStreak = 0;
+	let startCheck = null;
+	if (activeDates.has(todayStr)) {
+		startCheck = new Date(todayStr);
+	} else if (activeDates.has(yesterdayStr)) {
+		startCheck = new Date(yesterdayStr);
+	}
+
+	if (startCheck) {
+		let cursor = new Date(startCheck);
+		while (activeDates.has(cursor.toISOString().split("T")[0])) {
+			currentStreak++;
+			cursor = new Date(cursor.getTime() - 24 * 60 * 60 * 1000);
+		}
+	}
+
+	// Longest streak within the period
+	let longestStreak = 0;
+	let temp = 1;
+	for (let i = 1; i < sortedDates.length; i++) {
+		const prev = new Date(sortedDates[i - 1]);
+		const curr = new Date(sortedDates[i]);
+		const diffDays = (curr - prev) / (24 * 60 * 60 * 1000);
+		if (diffDays === 1) {
+			temp++;
+		} else {
+			if (temp > longestStreak) longestStreak = temp;
+			temp = 1;
+		}
+	}
+	if (temp > longestStreak) longestStreak = temp;
+
+	return {
+		current_streak: currentStreak,
+		longest_streak_in_period: longestStreak,
+		active_days_in_period: sortedDates.length,
+		note: "Calculated from GraphQL contributions calendar",
+	};
+}
+
+/**
  * Fetch GitHub data from REST API
  * Uses authenticated requests when GITHUB_TOKEN is available
  */
@@ -477,7 +548,8 @@ async function fetchGitHubData() {
 		const topRepos = getTopRepos(repos, 10);
 		const languageStats = aggregateLanguages(repos);
 		const activity = parseActivityFromEvents(events, 30);
-		const streak = calculateStreak(events);
+		// Prefer accurate streak from contributions calendar when available
+		let streak = calculateStreak(events);
 
 		// Step 3a: Build day-wise commit heatmap (last 365 days)
 		let commitHeatmap = null;
@@ -504,6 +576,14 @@ async function fetchGitHubData() {
 				"⚠️  Failed to fetch GraphQL contributions calendar:",
 				e.message
 			);
+		}
+
+		// If we have contributions calendar, recompute streak from it
+		if (
+			contributionsCalendar?.daily &&
+			Array.isArray(contributionsCalendar.daily)
+		) {
+			streak = calculateStreakFromContributionDays(contributionsCalendar.daily);
 		}
 
 		// Find last activity timestamp
