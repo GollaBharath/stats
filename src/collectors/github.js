@@ -624,6 +624,10 @@ async function fetchGitHubData() {
 
 			contribution_signals: {
 				...streak,
+				// Aliases for clarity and UI correctness
+				streak: streak.current_streak,
+				streak_current: streak.current_streak,
+				streak_longest: streak.longest_streak_in_period,
 				last_activity: lastActivity,
 				last_activity_human: lastActivity
 					? `${Math.floor(
