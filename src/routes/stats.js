@@ -132,6 +132,34 @@ router.get("/leetcode", async (req, res) => {
 });
 
 /**
+ * GET /leetcode/submissions/daily - Day-wise submissions for last 365 days
+ */
+router.get("/leetcode/submissions/daily", async (req, res) => {
+	try {
+		const data = await getLeetCodeData();
+
+		if (!data?.submissions_last_365_days) {
+			return res.status(404).json({
+				error: "LeetCode submissions heatmap not available",
+				message:
+					"Check LEETCODE_USERNAME. Data is pulled from LeetCode calendar and may be cached.",
+			});
+		}
+
+		res.json({
+			meta: { generated_at: new Date().toISOString() },
+			data: data.submissions_last_365_days,
+		});
+	} catch (error) {
+		console.error("Error fetching LeetCode daily submissions heatmap:", error);
+		res.status(500).json({
+			error: "Failed to fetch LeetCode daily submissions heatmap",
+			message: error.message,
+		});
+	}
+});
+
+/**
  * GET /wakatime - WakaTime coding statistics
  */
 router.get("/wakatime", async (req, res) => {
@@ -184,6 +212,62 @@ router.get("/github", async (req, res) => {
 		console.error("Error fetching GitHub data:", error);
 		res.status(500).json({
 			error: "Failed to fetch GitHub data",
+			message: error.message,
+		});
+	}
+});
+
+/**
+ * GET /github/commits/daily - Day-wise commits for last 365 days
+ */
+router.get("/github/commits/daily", async (req, res) => {
+	try {
+		const data = await getGitHubData();
+
+		if (!data?.commits_last_365_days) {
+			return res.status(404).json({
+				error: "Commit heatmap not available",
+				message:
+					"Ensure GITHUB_TOKEN is configured and try again. Data may be cached.",
+			});
+		}
+
+		res.json({
+			meta: { generated_at: new Date().toISOString() },
+			data: data.commits_last_365_days,
+		});
+	} catch (error) {
+		console.error("Error fetching daily commit heatmap:", error);
+		res.status(500).json({
+			error: "Failed to fetch daily commit heatmap",
+			message: error.message,
+		});
+	}
+});
+
+/**
+ * GET /github/contributions/daily - Day-wise contributions (fallback)
+ */
+router.get("/github/contributions/daily", async (req, res) => {
+	try {
+		const data = await getGitHubData();
+
+		if (!data?.contributions_last_365_days) {
+			return res.status(404).json({
+				error: "Contribution calendar not available",
+				message:
+					"Ensure GITHUB_TOKEN is configured and try again. Data may be cached.",
+			});
+		}
+
+		res.json({
+			meta: { generated_at: new Date().toISOString() },
+			data: data.contributions_last_365_days,
+		});
+	} catch (error) {
+		console.error("Error fetching daily contributions calendar:", error);
+		res.status(500).json({
+			error: "Failed to fetch daily contributions calendar",
 			message: error.message,
 		});
 	}

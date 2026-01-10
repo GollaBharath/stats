@@ -196,6 +196,73 @@ Returns current Discord presence including status, activities, and Spotify integ
 
 ---
 
+### 9. GitHub: Profile & Activity
+
+**GET /stats/github**
+
+Returns GitHub profile, repos, language distribution, recent activity, and heatmap data.
+
+Key fields:
+
+- `commits_last_365_days`: Day-wise commit counts across non-fork repos.
+  - `range_days`: 365
+  - `total_commits`: integer
+  - `daily`: array of `{ date: YYYY-MM-DD, commits: number }`
+- `contributions_last_365_days`: Day-wise total contributions (GraphQL calendar; includes commits, PRs, issues). Useful fallback if commit heatmap is unavailable.
+  - `range_days`: 365
+  - `total_contributions`: integer
+  - `daily`: array of `{ date: YYYY-MM-DD, contributions: number }`
+
+---
+
+### 10. GitHub: Commits Heatmap
+
+**GET /stats/github/commits/daily**
+
+Returns only the commit heatmap payload for the last 365 days.
+
+Example response:
+
+```json
+{
+	"meta": { "generated_at": "2026-01-10T12:00:00.000Z" },
+	"data": {
+		"range_days": 365,
+		"total_commits": 1234,
+		"daily": [
+			{ "date": "2025-01-11", "commits": 0 },
+			{ "date": "2025-01-12", "commits": 2 }
+		],
+		"note": "Counts commits authored by the user on default branches across non-fork repos"
+	}
+}
+```
+
+---
+
+### 11. GitHub: Contributions Calendar (Fallback)
+
+**GET /stats/github/contributions/daily**
+
+GraphQL-derived daily totals (includes commits, PRs, issues). Use when commit-only heatmap is not available.
+
+Example response:
+
+```json
+{
+	"meta": { "generated_at": "2026-01-10T12:00:00.000Z" },
+	"data": {
+		"range_days": 365,
+		"total_contributions": 2345,
+		"daily": [
+			{ "date": "2025-01-11", "contributions": 1 },
+			{ "date": "2025-01-12", "contributions": 3 }
+		],
+		"note": "GraphQL calendar: includes commits, PRs, issues, etc."
+	}
+}
+```
+
 ### 5. Spotify Now Playing
 
 **GET /stats/spotify**
@@ -243,6 +310,33 @@ Returns current Spotify playback status (extracted from Discord presence).
 	}
 }
 ```
+
+---
+
+### 6. LeetCode: Daily Submissions Heatmap
+
+**GET /stats/leetcode/submissions/daily**
+
+Returns day-wise submission counts for the last 365 days using LeetCode's public calendar API.
+
+Example response:
+
+```json
+{
+	"meta": { "generated_at": "2026-01-10T12:00:00.000Z" },
+	"data": {
+		"range_days": 365,
+		"total_submissions": 456,
+		"daily": [
+			{ "date": "2025-01-11", "submissions": 0 },
+			{ "date": "2025-01-12", "submissions": 3 }
+		],
+		"note": "Counts submissions per day from LeetCode calendar API"
+	}
+}
+```
+
+Included within the full LeetCode payload under `submissions_last_365_days`.
 
 ---
 

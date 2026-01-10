@@ -2,6 +2,7 @@ const axios = require("axios");
 const { setCache, getCache } = require("../cache/redis");
 
 const GITHUB_API = "https://api.github.com";
+const GITHUB_GRAPHQL = "https://api.github.com/graphql";
 const CACHE_KEY = "stats:github";
 const CACHE_TTL = parseInt(process.env.CACHE_TTL, 10) || 300;
 
@@ -15,6 +16,37 @@ function getHeaders() {
 		"User-Agent": "Personal-Stats-API/1.0",
 		...(token && { Authorization: `Bearer ${token}` }),
 	};
+}
+
+/**
+ * GitHub GraphQL request helper
+ */
+async function graphqlRequest(query, variables) {
+	const token = process.env.GITHUB_TOKEN;
+	if (!token) return null;
+
+	try {
+		const response = await axios.post(
+			GITHUB_GRAPHQL,
+			{ query, variables },
+			{
+				headers: {
+					Authorization: `Bearer ${token}`,
+					"Content-Type": "application/json",
+				},
+				timeout: 20000,
+			}
+		);
+
+		if (response.data.errors) {
+			console.warn("⚠️  GitHub GraphQL errors:", response.data.errors);
+			return null;
+		}
+		return response.data.data;
+	} catch (error) {
+		console.warn("⚠️  GitHub GraphQL request failed:", error.message);
+		return null;
+	}
 }
 
 /**
@@ -131,6 +163,117 @@ function calculateRepoMetrics(repos) {
 		owned_stars: ownedStars,
 		total_forks: totalForks,
 		archived_count: repos.filter((r) => r.archived).length,
+	};
+}
+
+/**
+ * Build day-wise commit counts for the last N days using REST API
+ * Aggregates commits authored by the authenticated user across owned repos.
+ */
+async function buildCommitHeatmapREST(username, repos, days, headers) {
+	const fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+	const untilDate = new Date();
+	const sinceISO = fromDate.toISOString();
+	const untilISO = untilDate.toISOString();
+
+	const dailyCounts = new Map();
+
+	// Initialize map for all dates in range to ensure zeros are present
+	for (let i = 0; i < days; i++) {
+		const d = new Date(fromDate.getTime() + i * 24 * 60 * 60 * 1000)
+			.toISOString()
+			.split("T")[0];
+		dailyCounts.set(d, 0);
+	}
+
+	// Consider non-fork repos where the user has ownership
+	const targetRepos = repos.filter((r) => !r.fork);
+
+	for (const repo of targetRepos) {
+		const owner = repo.owner?.login || username;
+		const commitsUrl = `${GITHUB_API}/repos/${owner}/${
+			repo.name
+		}/commits?author=${encodeURIComponent(username)}&since=${encodeURIComponent(
+			sinceISO
+		)}&until=${encodeURIComponent(untilISO)}`;
+
+		// Paginate commits (default branch) and tally by day
+		const commits = await fetchAllPages(commitsUrl, headers, 10);
+		for (const c of commits) {
+			const dateStr = (
+				c.commit?.author?.date ||
+				c.commit?.committer?.date ||
+				c.created_at ||
+				""
+			).split("T")[0];
+			if (!dateStr) continue;
+			if (dailyCounts.has(dateStr)) {
+				dailyCounts.set(dateStr, (dailyCounts.get(dateStr) || 0) + 1);
+			}
+		}
+	}
+
+	const daily = [...dailyCounts.entries()]
+		.map(([date, commits]) => ({ date, commits }))
+		.sort((a, b) => a.date.localeCompare(b.date));
+
+	const totalCommits = daily.reduce((sum, d) => sum + d.commits, 0);
+
+	return {
+		range_days: days,
+		total_commits: totalCommits,
+		daily,
+		note: "Counts commits authored by the user on default branches across non-fork repos",
+	};
+}
+
+/**
+ * Build day-wise contributions (all types) via GraphQL calendar — fallback
+ */
+async function buildContributionCalendarGraphQL(username, days) {
+	const to = new Date();
+	const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+	const query = `
+	  query($login: String!, $from: DateTime!, $to: DateTime!) {
+		user(login: $login) {
+		  contributionsCollection(from: $from, to: $to) {
+			contributionCalendar {
+			  weeks {
+				contributionDays { date contributionCount }
+			  }
+			}
+		  }
+		}
+	  }
+	`;
+
+	const data = await graphqlRequest(query, {
+		login: username,
+		from: from.toISOString(),
+		to: to.toISOString(),
+	});
+
+	if (!data?.user?.contributionsCollection?.contributionCalendar?.weeks) {
+		return null;
+	}
+
+	const daysArr = [];
+	for (const wk of data.user.contributionsCollection.contributionCalendar
+		.weeks) {
+		for (const d of wk.contributionDays) {
+			daysArr.push({ date: d.date, contributions: d.contributionCount });
+		}
+	}
+	daysArr.sort((a, b) => a.date.localeCompare(b.date));
+
+	const total = daysArr.reduce((s, d) => s + d.contributions, 0);
+
+	return {
+		range_days: days,
+		total_contributions: total,
+		daily: daysArr,
+		note: "GraphQL calendar: includes commits, PRs, issues, etc.",
 	};
 }
 
@@ -336,6 +479,33 @@ async function fetchGitHubData() {
 		const activity = parseActivityFromEvents(events, 30);
 		const streak = calculateStreak(events);
 
+		// Step 3a: Build day-wise commit heatmap (last 365 days)
+		let commitHeatmap = null;
+		try {
+			commitHeatmap = await buildCommitHeatmapREST(
+				username,
+				repos,
+				365,
+				headers
+			);
+		} catch (e) {
+			console.warn("⚠️  Failed to build commit heatmap via REST:", e.message);
+		}
+
+		// Optional: GraphQL contributions calendar fallback
+		let contributionsCalendar = null;
+		try {
+			contributionsCalendar = await buildContributionCalendarGraphQL(
+				username,
+				365
+			);
+		} catch (e) {
+			console.warn(
+				"⚠️  Failed to fetch GraphQL contributions calendar:",
+				e.message
+			);
+		}
+
 		// Find last activity timestamp
 		const lastActivity = events.length > 0 ? events[0].created_at : null;
 
@@ -368,6 +538,9 @@ async function fetchGitHubData() {
 			language_distribution: languageStats,
 
 			activity_last_30_days: activity,
+
+			commits_last_365_days: commitHeatmap,
+			contributions_last_365_days: contributionsCalendar,
 
 			contribution_signals: {
 				...streak,
