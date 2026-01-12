@@ -61,6 +61,40 @@ SPOTIFY_CLIENT_ID=xxx SPOTIFY_CLIENT_SECRET=xxx node setup-spotify.js
 
 Configure via `INTERVAL_*` environment variables.
 
+## ✨ New Features (v1.1.0)
+
+### WakaTime All-Time Stats
+
+Access real all-time coding statistics:
+
+```javascript
+const { all_time_stats } = data.wakatime;
+// {
+//   total_seconds: 3400705,
+//   text: "944 hrs 38 mins",
+//   daily_average: 9317,
+//   daily_average_text: "2 hrs 35 mins",
+//   source: "wakatime_all_time_api"
+// }
+```
+
+### GitHub Commit Time Distribution
+
+See when you code most actively:
+
+```javascript
+const { time_distribution } = data.github.commits_last_365_days;
+// {
+//   total_commits: 1234,
+//   distribution: {
+//     morning: { count: 123, percent: "10.0", hours: "6:00 - 12:00" },
+//     daytime: { count: 567, percent: "46.0", hours: "12:00 - 18:00" },
+//     evening: { count: 432, percent: "35.0", hours: "18:00 - 24:00" },
+//     night: { count: 112, percent: "9.0", hours: "0:00 - 6:00" }
+//   }
+// }
+```
+
 ## 🔧 Troubleshooting
 
 **Redis fails**: Check Upstash REST URL and token  

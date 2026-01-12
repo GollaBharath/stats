@@ -169,6 +169,81 @@ function calculateRepoMetrics(repos) {
 }
 
 /**
+ * Categorize commits by time of day (morning, daytime, evening, night)
+ * Returns distribution based on commit timestamp hours
+ */
+function categorizeCommitsByTimeOfDay(commits) {
+	const distribution = {
+		morning: { count: 0, hours: "6:00 - 12:00", commits: [] },
+		daytime: { count: 0, hours: "12:00 - 18:00", commits: [] },
+		evening: { count: 0, hours: "18:00 - 24:00", commits: [] },
+		night: { count: 0, hours: "0:00 - 6:00", commits: [] },
+	};
+
+	for (const commit of commits) {
+		const timestamp =
+			commit.commit?.author?.date || commit.commit?.committer?.date;
+		if (!timestamp) continue;
+
+		const date = new Date(timestamp);
+		const hour = date.getHours();
+
+		// Categorize based on hour (using local time)
+		if (hour >= 6 && hour < 12) {
+			distribution.morning.count++;
+			distribution.morning.commits.push({
+				sha: commit.sha?.substring(0, 7),
+				message: commit.commit?.message?.split("\n")[0],
+				date: timestamp,
+			});
+		} else if (hour >= 12 && hour < 18) {
+			distribution.daytime.count++;
+			distribution.daytime.commits.push({
+				sha: commit.sha?.substring(0, 7),
+				message: commit.commit?.message?.split("\n")[0],
+				date: timestamp,
+			});
+		} else if (hour >= 18 && hour < 24) {
+			distribution.evening.count++;
+			distribution.evening.commits.push({
+				sha: commit.sha?.substring(0, 7),
+				message: commit.commit?.message?.split("\n")[0],
+				date: timestamp,
+			});
+		} else {
+			distribution.night.count++;
+			distribution.night.commits.push({
+				sha: commit.sha?.substring(0, 7),
+				message: commit.commit?.message?.split("\n")[0],
+				date: timestamp,
+			});
+		}
+	}
+
+	const totalCommits =
+		distribution.morning.count +
+		distribution.daytime.count +
+		distribution.evening.count +
+		distribution.night.count;
+
+	// Calculate percentages
+	for (const period of Object.keys(distribution)) {
+		distribution[period].percent =
+			totalCommits > 0
+				? ((distribution[period].count / totalCommits) * 100).toFixed(1)
+				: 0;
+		// Limit stored commits to last 5 per period
+		distribution[period].commits = distribution[period].commits.slice(-5);
+	}
+
+	return {
+		total_commits: totalCommits,
+		distribution,
+		note: "Commits categorized by UTC timestamp hour",
+	};
+}
+
+/**
  * Build day-wise commit counts for the last N days using REST API
  * Aggregates commits authored by the authenticated user across owned repos.
  */
@@ -179,6 +254,7 @@ async function buildCommitHeatmapREST(username, repos, days, headers) {
 	const untilISO = untilDate.toISOString();
 
 	const dailyCounts = new Map();
+	const allCommits = [];
 
 	// Initialize map for all dates in range to ensure zeros are present
 	for (let i = 0; i < days; i++) {
@@ -201,6 +277,7 @@ async function buildCommitHeatmapREST(username, repos, days, headers) {
 
 		// Paginate commits (default branch) and tally by day
 		const commits = await fetchAllPages(commitsUrl, headers, 10);
+		allCommits.push(...commits);
 		for (const c of commits) {
 			const dateStr = (
 				c.commit?.author?.date ||
@@ -221,10 +298,14 @@ async function buildCommitHeatmapREST(username, repos, days, headers) {
 
 	const totalCommits = daily.reduce((sum, d) => sum + d.commits, 0);
 
+	// Analyze time distribution
+	const timeDistribution = categorizeCommitsByTimeOfDay(allCommits);
+
 	return {
 		range_days: days,
 		total_commits: totalCommits,
 		daily,
+		time_distribution: timeDistribution,
 		note: "Counts commits authored by the user on default branches across non-fork repos",
 	};
 }

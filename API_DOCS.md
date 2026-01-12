@@ -208,6 +208,9 @@ Key fields:
   - `range_days`: 365
   - `total_commits`: integer
   - `daily`: array of `{ date: YYYY-MM-DD, commits: number }`
+  - `time_distribution`: Commits categorized by time of day (morning, daytime, evening, night)
+    - `morning` (6:00-12:00), `daytime` (12:00-18:00), `evening` (18:00-24:00), `night` (0:00-6:00)
+    - Each period includes: `count`, `percent`, `hours`, `commits` (last 5 recent commits)
 - `contributions_last_365_days`: Day-wise total contributions (GraphQL calendar; includes commits, PRs, issues). Useful fallback if commit heatmap is unavailable.
   - `range_days`: 365
   - `total_contributions`: integer
@@ -219,7 +222,7 @@ Key fields:
 
 **GET /stats/github/commits/daily**
 
-Returns only the commit heatmap payload for the last 365 days.
+Returns only the commit heatmap payload for the last 365 days with time distribution analysis.
 
 Example response:
 
@@ -233,6 +236,42 @@ Example response:
 			{ "date": "2025-01-11", "commits": 0 },
 			{ "date": "2025-01-12", "commits": 2 }
 		],
+		"time_distribution": {
+			"total_commits": 1234,
+			"distribution": {
+				"morning": {
+					"count": 123,
+					"percent": "10.0",
+					"hours": "6:00 - 12:00",
+					"commits": [
+						{
+							"sha": "abc1234",
+							"message": "Fix bug in authentication",
+							"date": "2026-01-10T08:30:00Z"
+						}
+					]
+				},
+				"daytime": {
+					"count": 567,
+					"percent": "46.0",
+					"hours": "12:00 - 18:00",
+					"commits": []
+				},
+				"evening": {
+					"count": 432,
+					"percent": "35.0",
+					"hours": "18:00 - 24:00",
+					"commits": []
+				},
+				"night": {
+					"count": 112,
+					"percent": "9.0",
+					"hours": "0:00 - 6:00",
+					"commits": []
+				}
+			},
+			"note": "Commits categorized by UTC timestamp hour"
+		},
 		"note": "Counts commits authored by the user on default branches across non-fork repos"
 	}
 }
@@ -511,10 +550,17 @@ Returns comprehensive coding statistics from WakaTime.
 				"text": "8 hrs"
 			}
 		},
-		"all_time": {
+		"all_time_stats": {
 			"total_seconds": 5400000,
 			"text": "1,500 hrs",
-			"is_up_to_date": true
+			"daily_average": 14794,
+			"daily_average_text": "4 hrs 6 mins",
+			"source": "wakatime_all_time_api"
+		},
+		"derived_all_time_estimate": {
+			"total_seconds": 5400000,
+			"text": "1,500 hrs",
+			"source": "wakatime_all_time_api"
 		},
 		"daily_summaries": [
 			{

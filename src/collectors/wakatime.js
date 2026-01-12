@@ -179,12 +179,17 @@ async function fetchWakaTimeData() {
 	try {
 		console.log("🔄 Fetching WakaTime data...");
 
-		const [userRes, stats7Res, stats30Res] = await Promise.all([
+		const [userRes, stats7Res, stats30Res, allTimeRes] = await Promise.all([
 			axios.get(`${WAKATIME_API}/users/current`, { headers }),
 			axios.get(`${WAKATIME_API}/users/current/stats/last_7_days`, { headers }),
 			axios.get(`${WAKATIME_API}/users/current/stats/last_30_days`, {
 				headers,
 			}),
+			axios
+				.get(`${WAKATIME_API}/users/current/all_time_since_today`, {
+					headers,
+				})
+				.catch(() => null),
 		]);
 
 		const user = userRes.data.data;
@@ -195,6 +200,19 @@ async function fetchWakaTimeData() {
 		 * Explicit estimate — NOT real all-time
 		 */
 		const estimatedAllTimeSeconds = stats30.daily_average * 365;
+
+		// Process all-time stats if available
+		let allTimeStats = null;
+		if (allTimeRes?.data?.data) {
+			const allTime = allTimeRes.data.data;
+			allTimeStats = {
+				total_seconds: allTime.total_seconds || 0,
+				text: allTime.text || secondsToText(allTime.total_seconds || 0),
+				daily_average: allTime.daily_average || 0,
+				daily_average_text: secondsToText(allTime.daily_average || 0),
+				source: "wakatime_all_time_api",
+			};
+		}
 
 		const normalized = {
 			user: {
@@ -212,10 +230,19 @@ async function fetchWakaTimeData() {
 			stats_last_7_days: stats7,
 			stats_last_30_days: stats30,
 
-			derived_all_time_estimate: {
+			all_time_stats: allTimeStats || {
 				total_seconds: estimatedAllTimeSeconds,
 				text: secondsToText(estimatedAllTimeSeconds),
 				source: "estimated_from_last_30_days",
+			},
+
+			// Keep for backward compatibility
+			derived_all_time_estimate: {
+				total_seconds: allTimeStats?.total_seconds || estimatedAllTimeSeconds,
+				text: allTimeStats?.text || secondsToText(estimatedAllTimeSeconds),
+				source: allTimeStats
+					? "wakatime_all_time_api"
+					: "estimated_from_last_30_days",
 			},
 
 			last_updated: new Date().toISOString(),
