@@ -214,15 +214,83 @@ async function fetchLinesOfCode(headers) {
 			}
 		}
 
+		// Fetch all-time summaries (WakaTime stores data since account creation)
+		// We'll fetch in chunks to avoid hitting API limits
+		let totalLinesAllTime = 0;
+		try {
+			// Get account creation date from user data
+			const userRes = await axios.get(`${WAKATIME_API}/users/current`, {
+				headers,
+			});
+			const accountCreatedAt = new Date(userRes.data.data.created_at);
+			const now = new Date();
+
+			// Calculate all summaries since account creation in 6-month chunks
+			// (WakaTime API has limits on date ranges)
+			const allTimeDays = [];
+			let currentDate = new Date(accountCreatedAt);
+
+			while (currentDate < now) {
+				const chunkEnd = new Date(currentDate);
+				chunkEnd.setMonth(chunkEnd.getMonth() + 6);
+
+				if (chunkEnd > now) {
+					chunkEnd.setTime(now.getTime());
+				}
+
+				const chunkStart = currentDate.toISOString().split("T")[0];
+				const chunkEndDate = chunkEnd.toISOString().split("T")[0];
+
+				try {
+					const chunkRes = await axios.get(
+						`${WAKATIME_API}/users/current/summaries?start=${chunkStart}&end=${chunkEndDate}`,
+						{ headers }
+					);
+
+					if (chunkRes.data && chunkRes.data.data) {
+						allTimeDays.push(...chunkRes.data.data);
+					}
+
+					// Wait a bit to avoid rate limiting
+					await new Promise((resolve) => setTimeout(resolve, 100));
+				} catch (chunkError) {
+					console.warn(
+						`⚠️  Failed to fetch chunk ${chunkStart} to ${chunkEndDate}:`,
+						chunkError.message
+					);
+				}
+
+				currentDate = new Date(chunkEnd);
+				currentDate.setDate(currentDate.getDate() + 1);
+			}
+
+			// Calculate total lines from all days
+			for (const day of allTimeDays) {
+				const linesAdded = day.grand_total?.lines_added || 0;
+				const linesDeleted = day.grand_total?.lines_deleted || 0;
+				const linesTotal = day.grand_total?.lines || 0;
+
+				totalLinesAllTime += linesTotal || linesAdded + linesDeleted;
+			}
+
+			console.log(
+				`✅ Fetched ${allTimeDays.length} days of coding data for all-time stats`
+			);
+		} catch (allTimeError) {
+			console.warn("⚠️  All-time lines fetch failed:", allTimeError.message);
+		}
+
 		return {
 			last_7_days: totalLinesLast7Days,
 			last_30_days: totalLinesLast30Days,
+			all_time: totalLinesAllTime,
 		};
 	} catch (error) {
 		console.error("❌ Lines of code fetch failed:", error.message);
 		return {
 			last_7_days: 0,
 			last_30_days: 0,
+			all_time: 0,
 		};
 	}
 }
@@ -319,6 +387,7 @@ async function fetchWakaTimeData() {
 			lines_of_code: {
 				last_7_days: linesOfCode.last_7_days,
 				last_30_days: linesOfCode.last_30_days,
+				all_time: linesOfCode.all_time,
 			},
 
 			last_updated: new Date().toISOString(),
