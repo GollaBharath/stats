@@ -161,6 +161,73 @@ function normalizeStats(stats) {
 }
 
 /**
+ * Fetch WakaTime summaries to get lines of code
+ */
+async function fetchLinesOfCode(headers) {
+	try {
+		// Fetch last 7 days summaries
+		const today = new Date();
+		const sevenDaysAgo = new Date(today);
+		sevenDaysAgo.setDate(today.getDate() - 7);
+
+		const endDate = today.toISOString().split("T")[0];
+		const startDate = sevenDaysAgo.toISOString().split("T")[0];
+
+		const summariesRes = await axios.get(
+			`${WAKATIME_API}/users/current/summaries?start=${startDate}&end=${endDate}`,
+			{ headers }
+		);
+
+		let totalLinesLast7Days = 0;
+		let totalLinesLast30Days = 0;
+
+		// Calculate lines for last 7 days
+		if (summariesRes.data && summariesRes.data.data) {
+			for (const day of summariesRes.data.data) {
+				const linesAdded = day.grand_total?.lines_added || 0;
+				const linesDeleted = day.grand_total?.lines_deleted || 0;
+				const linesTotal = day.grand_total?.lines || 0;
+
+				// Use lines_added + lines_deleted as total activity, or lines if available
+				totalLinesLast7Days += linesTotal || linesAdded + linesDeleted;
+			}
+		}
+
+		// Fetch last 30 days summaries
+		const thirtyDaysAgo = new Date(today);
+		thirtyDaysAgo.setDate(today.getDate() - 30);
+		const startDate30 = thirtyDaysAgo.toISOString().split("T")[0];
+
+		const summaries30Res = await axios.get(
+			`${WAKATIME_API}/users/current/summaries?start=${startDate30}&end=${endDate}`,
+			{ headers }
+		);
+
+		// Calculate lines for last 30 days
+		if (summaries30Res.data && summaries30Res.data.data) {
+			for (const day of summaries30Res.data.data) {
+				const linesAdded = day.grand_total?.lines_added || 0;
+				const linesDeleted = day.grand_total?.lines_deleted || 0;
+				const linesTotal = day.grand_total?.lines || 0;
+
+				totalLinesLast30Days += linesTotal || linesAdded + linesDeleted;
+			}
+		}
+
+		return {
+			last_7_days: totalLinesLast7Days,
+			last_30_days: totalLinesLast30Days,
+		};
+	} catch (error) {
+		console.error("❌ Lines of code fetch failed:", error.message);
+		return {
+			last_7_days: 0,
+			last_30_days: 0,
+		};
+	}
+}
+
+/**
  * Fetch WakaTime data (FREE-TIER ONLY)
  */
 async function fetchWakaTimeData() {
@@ -179,18 +246,22 @@ async function fetchWakaTimeData() {
 	try {
 		console.log("🔄 Fetching WakaTime data...");
 
-		const [userRes, stats7Res, stats30Res, allTimeRes] = await Promise.all([
-			axios.get(`${WAKATIME_API}/users/current`, { headers }),
-			axios.get(`${WAKATIME_API}/users/current/stats/last_7_days`, { headers }),
-			axios.get(`${WAKATIME_API}/users/current/stats/last_30_days`, {
-				headers,
-			}),
-			axios
-				.get(`${WAKATIME_API}/users/current/all_time_since_today`, {
+		const [userRes, stats7Res, stats30Res, allTimeRes, linesOfCode] =
+			await Promise.all([
+				axios.get(`${WAKATIME_API}/users/current`, { headers }),
+				axios.get(`${WAKATIME_API}/users/current/stats/last_7_days`, {
 					headers,
-				})
-				.catch(() => null),
-		]);
+				}),
+				axios.get(`${WAKATIME_API}/users/current/stats/last_30_days`, {
+					headers,
+				}),
+				axios
+					.get(`${WAKATIME_API}/users/current/all_time_since_today`, {
+						headers,
+					})
+					.catch(() => null),
+				fetchLinesOfCode(headers),
+			]);
 
 		const user = userRes.data.data;
 		const stats7 = normalizeStats(stats7Res.data.data);
@@ -243,6 +314,11 @@ async function fetchWakaTimeData() {
 				source: allTimeStats
 					? "wakatime_all_time_api"
 					: "estimated_from_last_30_days",
+			},
+
+			lines_of_code: {
+				last_7_days: linesOfCode.last_7_days,
+				last_30_days: linesOfCode.last_30_days,
 			},
 
 			last_updated: new Date().toISOString(),

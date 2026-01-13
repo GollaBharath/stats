@@ -562,6 +562,10 @@ Returns comprehensive coding statistics from WakaTime.
 			"text": "1,500 hrs",
 			"source": "wakatime_all_time_api"
 		},
+		"lines_of_code": {
+			"last_7_days": 12450,
+			"last_30_days": 58320
+		},
 		"daily_summaries": [
 			{
 				"date": "2026-01-01",
