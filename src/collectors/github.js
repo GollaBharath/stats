@@ -5,6 +5,8 @@ const GITHUB_API = "https://api.github.com";
 const GITHUB_GRAPHQL = "https://api.github.com/graphql";
 const CACHE_KEY = "stats:github";
 const CACHE_TTL = parseInt(process.env.CACHE_TTL, 10) || 300;
+const LOC_CACHE_KEY = "stats:github:lines_of_code";
+const LOC_CACHE_TTL = 86400; // 24 hours - lines of code changes slowly
 
 /**
  * GitHub API client with rate limit handling
@@ -447,6 +449,175 @@ function parseActivityFromEvents(events, dayLimit = 30) {
 }
 
 /**
+ * Calculate all-time lines of code from GitHub commits
+ * Uses GraphQL to fetch commit history and calculate additions/deletions
+ * Cached for 24 hours to avoid rate limits and improve performance
+ */
+async function fetchAllTimeLinesOfCode(username) {
+	// Initialize Redis if not already done
+	const { initRedis } = require("../cache/redis");
+	initRedis();
+
+	// Check cache first
+	const cached = await getCache(LOC_CACHE_KEY);
+	if (cached) {
+		console.log("✅ Using cached all-time lines of code");
+		return cached;
+	}
+
+	console.log("🔄 Calculating all-time lines of code from GitHub commits...");
+
+	const token = process.env.GITHUB_TOKEN;
+	if (!token) {
+		console.warn(
+			"⚠️  GITHUB_TOKEN not configured for lines of code calculation"
+		);
+		return null;
+	}
+
+	try {
+		// GraphQL query to fetch all repositories
+		const reposQuery = `
+			query($login: String!, $cursor: String) {
+				user(login: $login) {
+					repositories(first: 100, after: $cursor, ownerAffiliations: [OWNER], orderBy: {field: UPDATED_AT, direction: DESC}) {
+						pageInfo {
+							hasNextPage
+							endCursor
+						}
+						nodes {
+							name
+							owner {
+								login
+							}
+							isFork
+							isArchived
+							defaultBranchRef {
+								name
+								target {
+									... on Commit {
+										history(first: 1, author: {id: null}) {
+											totalCount
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		`;
+
+		// Fetch all repositories
+		let allRepos = [];
+		let hasNextPage = true;
+		let cursor = null;
+		let pageCount = 0;
+		const maxPages = 10; // Limit to avoid excessive API calls
+
+		while (hasNextPage && pageCount < maxPages) {
+			const data = await graphqlRequest(reposQuery, {
+				login: username,
+				cursor,
+			});
+			if (!data?.user?.repositories) break;
+
+			const repos = data.user.repositories;
+			allRepos.push(...repos.nodes);
+			hasNextPage = repos.pageInfo.hasNextPage;
+			cursor = repos.pageInfo.endCursor;
+			pageCount++;
+		}
+
+		// Filter to non-fork, non-archived repos
+		const targetRepos = allRepos.filter((r) => !r.isFork && !r.isArchived);
+		console.log(`📊 Analyzing ${targetRepos.length} repositories...`);
+
+		let totalAdditions = 0;
+		let totalDeletions = 0;
+		let totalCommits = 0;
+		let reposAnalyzed = 0;
+
+		// Fetch commit stats for each repo (with rate limit consideration)
+		for (const repo of targetRepos.slice(0, 50)) {
+			// Limit to first 50 repos
+			const owner = repo.owner.login;
+			const repoName = repo.name;
+
+			try {
+				// Use REST API to get contributor stats (includes additions/deletions)
+				const statsUrl = `${GITHUB_API}/repos/${owner}/${repoName}/stats/contributors`;
+				const headers = getHeaders();
+
+				const stats = await safeRequest(statsUrl, headers);
+
+				// GitHub returns 202 while computing stats, so retry once if needed
+				if (!stats) {
+					await new Promise((resolve) => setTimeout(resolve, 2000));
+					const retryStats = await safeRequest(statsUrl, headers);
+					if (retryStats && Array.isArray(retryStats)) {
+						const userStats = retryStats.find(
+							(s) => s.author?.login === username
+						);
+						if (userStats) {
+							for (const week of userStats.weeks || []) {
+								totalAdditions += week.a || 0;
+								totalDeletions += week.d || 0;
+								totalCommits += week.c || 0;
+							}
+							reposAnalyzed++;
+						}
+					}
+				} else if (stats && Array.isArray(stats)) {
+					// Find the authenticated user's stats
+					const userStats = stats.find((s) => s.author?.login === username);
+
+					if (userStats) {
+						// Sum up all weeks
+						for (const week of userStats.weeks || []) {
+							totalAdditions += week.a || 0;
+							totalDeletions += week.d || 0;
+							totalCommits += week.c || 0;
+						}
+						reposAnalyzed++;
+					}
+				}
+
+				// Throttle to avoid rate limits (wait 250ms between requests)
+				await new Promise((resolve) => setTimeout(resolve, 250));
+			} catch (err) {
+				console.warn(`⚠️  Failed to fetch stats for ${repoName}:`, err.message);
+			}
+		}
+
+		const result = {
+			total_lines_added: totalAdditions,
+			total_lines_deleted: totalDeletions,
+			total_lines_changed: totalAdditions + totalDeletions,
+			net_lines: totalAdditions - totalDeletions,
+			total_commits: totalCommits,
+			repositories_analyzed: reposAnalyzed,
+			note: "Calculated from GitHub contributor stats API",
+			last_updated: new Date().toISOString(),
+		};
+
+		// Cache for 24 hours
+		await setCache(LOC_CACHE_KEY, result, LOC_CACHE_TTL);
+		console.log(
+			`✅ All-time lines of code calculated: ${result.total_lines_added.toLocaleString()} additions, ${result.total_lines_deleted.toLocaleString()} deletions`
+		);
+
+		return result;
+	} catch (error) {
+		console.error(
+			"❌ Failed to calculate all-time lines of code:",
+			error.message
+		);
+		return null;
+	}
+}
+
+/**
  * Calculate contribution streak (best effort from events)
  * This is an approximation based on available event data
  */
@@ -645,6 +816,17 @@ async function fetchGitHubData() {
 			console.warn("⚠️  Failed to build commit heatmap via REST:", e.message);
 		}
 
+		// Step 3b: Calculate all-time lines of code (cached for 24h)
+		let linesOfCode = null;
+		try {
+			linesOfCode = await fetchAllTimeLinesOfCode(username);
+		} catch (e) {
+			console.warn(
+				"⚠️  Failed to calculate all-time lines of code:",
+				e.message
+			);
+		}
+
 		// Optional: GraphQL contributions calendar fallback
 		let contributionsCalendar = null;
 		try {
@@ -703,6 +885,8 @@ async function fetchGitHubData() {
 			commits_last_365_days: commitHeatmap,
 			contributions_last_365_days: contributionsCalendar,
 
+			all_time_lines_of_code: linesOfCode,
+
 			contribution_signals: {
 				...streak,
 				// Aliases for clarity and UI correctness
@@ -758,5 +942,7 @@ async function getGitHubData() {
 module.exports = {
 	fetchGitHubData,
 	getGitHubData,
+	fetchAllTimeLinesOfCode,
 	CACHE_KEY,
+	LOC_CACHE_KEY,
 };
